@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通勤地图找房 - 测试高德 API</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px 40px;
+      text-align: center;
+    }
+    #header h1 { font-size: 28px; margin-bottom: 8px; }
+    #header p { font-size: 14px; opacity: 0.9; }
+    #container { padding: 20px; }
+    #map { width: 100%; height: 600px; border-radius: 8px; }
+    #status {
+      margin-top: 20px;
+      padding: 20px;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 8px;
+      color: #166534;
+    }
+    .loading { text-align: center; padding: 40px; color: #666; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>🏠 通勤地图找房</h1>
+    <p>输入工作地点，画出通勤圈，一眼看清圈内房价</p>
+  </div>
+  
+  <div id="container">
+    <div id="map">
+      <div class="loading">地图加载中...</div>
+    </div>
+    
+    <div id="status">
+      <h3>✅ 高德 API 配置测试</h3>
+      <p><strong>Key:</strong> <code id="key-status">检查中...</code></p>
+      <p><strong>安全码:</strong> <code id="security-status">检查中...</code></p>
+      <p><strong>状态:</strong> <code id="load-status">等待加载...</code></p>
+    </div>
+  </div>
+
+  <script>
+    // 设置安全密钥
+    window._AMapSecurityConfig = {
+      securityJsCode: '52750399020cbb98172a3f637d00f014'
+    };
+  </script>
+  <script type="text/javascript">
+    // 动态加载高德地图
+    const apiKey = '0eb679b0072d83ed048556bd6f949413';
+    
+    document.getElementById('key-status').textContent = apiKey ? '✅ 已配置' : '❌ 未配置';
+    document.getElementById('security-status').textContent = window._AMapSecurityConfig.securityJsCode ? '✅ 已配置' : '❌ 未配置';
+    
+    if (!apiKey) {
+      document.getElementById('load-status').textContent = '❌ 错误：缺少 API Key，请检查 .env 文件';
+      document.getElementById('load-status').style.color = '#dc2626';
+    } else {
+      document.getElementById('load-status').textContent = '🔄 正在加载地图...';
+      
+      // 创建 script 标签加载高德地图
+      const script = document.createElement('script');
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${apiKey}&plugin=AMap.Scale,AMap.ToolBar`;
+      script.onerror = function() {
+        document.getElementById('load-status').textContent = '❌ 错误：地图加载失败，请检查 Key 和安全码是否正确';
+        document.getElementById('load-status').style.color = '#dc2626';
+      };
+      
+      script.onload = function() {
+        document.getElementById('load-status').textContent = '✅ 地图加载成功！';
+        document.getElementById('load-status').style.color = '#16a34a';
+        
+        // 初始化地图
+        const map = new AMap.Map('map', {
+          zoom: 12,
+          center: [116.397428, 39.90923], // 北京
+          viewMode: '3D',
+          mapStyle: 'amap://styles/normal',
+        });
+        
+        // 添加比例尺和工具栏
+        map.addControl(new AMap.Scale());
+        map.addControl(new AMap.ToolBar());
+        
+        // 添加工作地点标记（北大医学部）
+        const marker = new AMap.Marker({
+          position: new AMap.LngLat(116.369329, 39.987312),
+          title: '北大医学部',
+          map: map,
+        });
+        
+        // 添加信息窗体
+        const infoWindow = new AMap.InfoWindow({
+          content: '<div style="padding:8px;"><strong>工作地点</strong><br/>北大医学部</div>',
+          offset: new AMap.Pixel(0, -30),
+        });
+        infoWindow.open(map, [116.369329, 39.987312]);
+        
+        // 绘制 45 分钟通勤圈（简化版圆形）
+        const circle = new AMap.Circle({
+          center: new AMap.LngLat(116.369329, 39.987312),
+          radius: 22500, // 45 分钟 * 30km/h / 2 = 约 22.5km
+          fillColor: '#4169E1',
+          fillOpacity: 0.2,
+          strokeColor: '#4169E1',
+          strokeWeight: 2,
+          strokeOpacity: 0.5,
+          map: map,
+        });
+        
+        console.log('✅ 地图初始化成功！');
+      };
+      
+      document.head.appendChild(script);
+    }
+  </script>
+</body>
+</html>
