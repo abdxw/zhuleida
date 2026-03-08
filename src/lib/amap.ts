@@ -10,9 +10,20 @@
  */
 
 import AMapLoader from '@amap/amap-jsapi-loader';
+import {
+  COMMUTE_MODE_META,
+  COMMUTE_WINDOW_META,
+  getCommuteMultiplier,
+  type CommuteContext,
+  type CommuteMode,
+} from '@/data/communities';
 
 // 全局地图实例
 let geocoderInstance: any = null;
+
+function hasConfiguredValue(value: string | undefined, placeholder: string) {
+  return Boolean(value && value.trim() && value.trim() !== placeholder);
+}
 
 /**
  * 初始化高德地图
@@ -27,15 +38,37 @@ export async function initAmap(
     mapStyle?: string;
   } = {}
 ): Promise<any> {
-  if (!import.meta.env.VITE_AMAP_KEY) {
-    throw new Error('缺少高德地图 API Key，请检查 .env 配置');
+  const amapKey = import.meta.env.VITE_AMAP_KEY;
+  const securityCode = import.meta.env.VITE_AMAP_SECURITY_CODE;
+
+  if (!hasConfiguredValue(amapKey, 'your_amap_key_here')) {
+    throw new Error('缺少有效的高德地图 API Key，请在 .env 中填写 VITE_AMAP_KEY');
+  }
+
+  if (!hasConfiguredValue(securityCode, 'your_amap_security_code_here')) {
+    throw new Error('缺少有效的高德安全码，请在 .env 中填写 VITE_AMAP_SECURITY_CODE');
+  }
+
+  if (securityCode) {
+    window._AMapSecurityConfig = {
+      ...(window._AMapSecurityConfig || {}),
+      securityJsCode: securityCode,
+    };
   }
 
   // 加载高德地图 JS API
   const AMap = await AMapLoader.load({
-    key: import.meta.env.VITE_AMAP_KEY,
+    key: amapKey,
     version: '2.0',
-    plugins: ['AMap.Geocoder', 'AMap.Driving', 'AMap.Transit', 'AMap.Scale', 'AMap.ToolBar'],
+    plugins: [
+      'AMap.Geocoder',
+      'AMap.Driving',
+      'AMap.Walking',
+      'AMap.Transfer',
+      'AMap.Scale',
+      'AMap.ToolBar',
+      'AMap.PlaceSearch',
+    ],
   });
 
   // 创建地图实例
@@ -157,16 +190,24 @@ export async function calculateDrivingTime(
  */
 export async function calculateTransitTime(
   from: [number, number],
-  to: [number, number]
+  to: [number, number],
+  mode: 'transit' | 'subway' = 'transit',
+  context: CommuteContext = {}
 ): Promise<{
   duration: number; // 分钟
   distance: number; // 公里
   routes: any[];
 } | null> {
   return new Promise((resolve, reject) => {
-    const transit = new (window as any).AMap.Transit({
-      policy: (window as any).AMap.TransitPolicy.LEAST_TIME,
+    const transit = new (window as any).AMap.Transfer({
+      city: '北京市',
+      policy:
+        mode === 'subway'
+          ? (window as any).AMap.TransferPolicy.LEAST_TRANSFER
+          : (window as any).AMap.TransferPolicy.LEAST_TIME,
     });
+    const currentWindow = context.window || 'morning';
+    transit.leaveAt(context.time || COMMUTE_WINDOW_META[currentWindow].defaultTime, getTodayDateString());
 
     transit.search(from, to, (status: string, result: any) => {
       if (status === 'complete' && result.routes && result.routes.length) {
@@ -192,7 +233,8 @@ export async function calculateTransitTime(
 export async function calculateCommuteTime(
   from: [number, number],
   to: [number, number],
-  mode: 'driving' | 'transit' | 'walking' = 'transit'
+  mode: CommuteMode = 'transit',
+  context: CommuteContext = {}
 ): Promise<{
   duration: number;
   distance: number;
@@ -200,9 +242,14 @@ export async function calculateCommuteTime(
   try {
     if (mode === 'driving') {
       const result = await calculateDrivingTime(from, to);
-      return result ? { duration: result.duration, distance: result.distance } : null;
-    } else if (mode === 'transit') {
-      const result = await calculateTransitTime(from, to);
+      return result
+        ? {
+            duration: applyWindowMultiplier(result.duration, mode, context),
+            distance: result.distance,
+          }
+        : null;
+    } else if (mode === 'transit' || mode === 'subway') {
+      const result = await calculateTransitTime(from, to, mode, context);
       return result ? { duration: result.duration, distance: result.distance } : null;
     } else {
       // 步行：简单估算（5km/h）
@@ -210,7 +257,10 @@ export async function calculateCommuteTime(
       const dy = from[1] - to[1];
       const distanceKm = Math.sqrt(dx * dx + dy * dy) * 111; // 约略转换
       const duration = Math.round((distanceKm / 5) * 60);
-      return { duration, distance: Math.round(distanceKm * 10) / 10 };
+      return {
+        duration: applyWindowMultiplier(duration, mode, context),
+        distance: Math.round(distanceKm * 10) / 10,
+      };
     }
   } catch (error) {
     console.error('通勤时间计算失败:', error);
@@ -267,21 +317,20 @@ export async function searchAround(
 export async function drawCommuteZone(
   center: [number, number],
   minutes: number,
-  mode: 'driving' | 'transit' = 'transit'
+  mode: CommuteMode = 'transit',
+  context: CommuteContext = {}
 ): Promise<any> {
-  // 简化版：以中心点为圆心，按平均速度估算半径
-  // 公共交通：约 30km/h（含等车、换乘）
-  // 驾车：约 40km/h（市区）
-  const speed = mode === 'transit' ? 30 : 40;
-  const radiusKm = (minutes / 60) * speed;
+  const config = COMMUTE_MODE_META[mode];
+  const adjustedMinutes = minutes / getCommuteMultiplier(mode, context);
+  const radiusKm = (adjustedMinutes / 60) * config.speedKmh;
   
   // 创建圆形覆盖物
   const circle = new (window as any).AMap.Circle({
     center: new (window as any).AMap.LngLat(center[0], center[1]),
     radius: radiusKm * 1000,
-    fillColor: '#4169E1',
+    fillColor: config.accent,
     fillOpacity: 0.2,
-    strokeColor: '#4169E1',
+    strokeColor: config.accent,
     strokeWeight: 2,
     strokeOpacity: 0.5,
   });
@@ -289,9 +338,21 @@ export async function drawCommuteZone(
   return circle;
 }
 
+function applyWindowMultiplier(duration: number, mode: CommuteMode, context: CommuteContext) {
+  return Math.max(1, Math.round(duration * getCommuteMultiplier(mode, context)));
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // 导出全局类型声明
 declare global {
   interface Window {
     AMap: any;
+    _AMapSecurityConfig?: {
+      securityJsCode?: string;
+      [key: string]: unknown;
+    };
   }
 }

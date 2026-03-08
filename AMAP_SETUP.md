@@ -33,8 +33,8 @@ cp .env.example .env
 填入你的 Key：
 
 ```env
-AMAP_KEY=你的 Key
-AMAP_SECURITY_CODE=你的安全码
+VITE_AMAP_KEY=你的 Key
+VITE_AMAP_SECURITY_CODE=你的安全码
 ```
 
 ---
@@ -99,7 +99,7 @@ const time = await calculateCommuteTime({
 ## 6. 常见问题
 
 ### Q: 提示"安全码校验失败"？
-A: 检查 `.env` 中的 `AMAP_SECURITY_CODE` 是否正确，确保没有多余空格。
+A: 检查 `.env` 中的 `VITE_AMAP_SECURITY_CODE` 是否正确，确保没有多余空格。
 
 ### Q: 地图不显示？
 A: 打开浏览器控制台，查看是否有 API Key 相关的错误信息。

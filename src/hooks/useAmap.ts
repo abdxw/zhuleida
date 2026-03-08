@@ -6,7 +6,8 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { initAmap, geocode, calculateCommuteTime, drawCommuteZone } from '../lib/amap';
+import { initAmap, geocode, reverseGeocode, calculateCommuteTime, drawCommuteZone } from '../lib/amap';
+import type { CommuteContext, CommuteMode } from '@/data/communities';
 
 interface UseAmapOptions {
   center?: [number, number];
@@ -21,15 +22,18 @@ interface UseAmapResult {
   loaded: boolean;
   error: Error | null;
   geocode: (address: string) => Promise<any>;
+  reverseGeocode: (lng: number, lat: number) => Promise<any>;
   calculateCommuteTime: (
     from: [number, number],
     to: [number, number],
-    mode?: 'driving' | 'transit' | 'walking'
+    mode?: CommuteMode,
+    context?: CommuteContext
   ) => Promise<any>;
   drawCommuteZone: (
     center: [number, number],
     minutes: number,
-    mode?: 'driving' | 'transit'
+    mode?: CommuteMode,
+    context?: CommuteContext
   ) => Promise<any>;
 }
 
@@ -80,34 +84,14 @@ export function useAmap(
     };
   }, [containerId]);
 
-  // 封装工具函数
-  const geocodeFn = async (address: string) => {
-    return geocode(address);
-  };
-
-  const calculateCommuteTimeFn = async (
-    from: [number, number],
-    to: [number, number],
-    mode: 'driving' | 'transit' | 'walking' = 'transit'
-  ) => {
-    return calculateCommuteTime(from, to, mode);
-  };
-
-  const drawCommuteZoneFn = async (
-    center: [number, number],
-    minutes: number,
-    mode: 'driving' | 'transit' = 'transit'
-  ) => {
-    return drawCommuteZone(center, minutes, mode);
-  };
-
   return {
     map,
     loaded,
     error,
-    geocode: geocodeFn,
-    calculateCommuteTime: calculateCommuteTimeFn,
-    drawCommuteZone: drawCommuteZoneFn,
+    geocode,
+    reverseGeocode,
+    calculateCommuteTime,
+    drawCommuteZone,
   };
 }
 

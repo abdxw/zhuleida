@@ -3,12 +3,6 @@
  * 文档：https://help.aliyun.com/zh/dashscope/
  */
 
-// @ts-ignore - dashscope 没有类型定义
-declare module 'dashscope';
-
-// 使用 Vite 的环境变量
-const DASHSCOPE_API_KEY = import.meta.env.VITE_DASHSCOPE_API_KEY || '';
-
 /**
  * 调用通义千问模型
  * @param prompt - 用户输入
@@ -16,29 +10,23 @@ const DASHSCOPE_API_KEY = import.meta.env.VITE_DASHSCOPE_API_KEY || '';
  */
 export async function callQwen(prompt: string): Promise<string> {
   try {
-    const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
+    const response = await fetch('/api/qwen', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DASHSCOPE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'qwen-turbo',
-        input: {
-          messages: [
-            { role: 'system', content: '你是一个有用的助手。' },
-            { role: 'user', content: prompt },
-          ],
-        },
+        prompt,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`API 请求失败: ${response.status}`);
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.error || `API 请求失败: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.output?.text || '未获取到响应';
+    return data.text || '未获取到响应';
   } catch (error) {
     console.error('阿里百炼 API 调用失败:', error);
     return 'AI 服务暂时不可用';

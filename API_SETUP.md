@@ -5,9 +5,9 @@
 | 项目 | 状态 | 说明 |
 |------|------|------|
 | **环境变量** | ✅ 已创建 | `.env` 文件已生成 |
-| **API Key** | ✅ 已配置 | 你的 Key 已存入 `.env` |
-| **SDK 依赖** | ✅ 已添加 | `dashscope` 已加入 package.json |
-| **调用工具** | ✅ 已创建 | `src/lib/dashscope.ts` |
+| **API Key** | ✅ 已配置 | 服务端从 `.env` 读取 |
+| **服务端代理** | ✅ 已创建 | `api/qwen.js` |
+| **前端调用工具** | ✅ 已创建 | `src/lib/dashscope.ts` |
 
 ---
 
@@ -84,7 +84,7 @@ const description = await generateCommunityDescription(
 ### ✅ 正确做法
 
 ```bash
-# 1. 使用环境变量
+# 1. 使用服务端环境变量
 DASHSCOPE_API_KEY=xxx
 
 # 2. .gitignore 忽略 .env 文件
@@ -153,7 +153,7 @@ A:
 3. 缓存常用结果
 
 ### Q: 可以在前端直接调用吗？
-A: ❌ 不建议！应该通过 Serverless API 调用，避免 Key 泄露
+A: ❌ 不建议！当前项目已经改为通过 `/api/qwen` Serverless API 调用，避免 Key 泄露
 
 ---
 
